@@ -1,0 +1,3 @@
+python ../test_encoder_for_single_picture.py --encoder=./output/psp_case1/v1/checkpoints/network-snapshot-000010.pkl --outdir=psp_case1_v1
+python ../test_encoder_for_single_picture.py --encoder=./output/psp_case1/v1/checkpoints/network-snapshot-000015.pkl --outdir=psp_case1_v1
+python ../test_encoder_for_single_picture.py --encoder=./output/psp_case1/v1/checkpoints/network-snapshot-000019.pkl --outdir=psp_case1_v1
