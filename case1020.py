@@ -5,7 +5,7 @@
 from random import random
 from dnnlib import camera
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]='4'
+# os.environ["CUDA_VISIBLE_DEVICES"]='4'
 import numpy as np
 import torch
 import copy
@@ -44,7 +44,7 @@ loss_fn_alex = lpips.LPIPS(net='alex')  # best forward scores
 from training.my_utils import *
 
 data_path = {
-    'hpcl': './output/create_dataset/car_dataset_trunc075/images',
+    'hpcl': '../car_dataset_trunc075/images',
     'jdt': '/workspace/datasets/car_zj/images'
 }
 
@@ -52,10 +52,10 @@ data_path = {
 # --data=./output/car_dataset_3w_test/images --g_ckpt=car_model.pkl --outdir=../car_stylenrf_output/psp_case2/debug
 @click.command()
 @click.option("--g_ckpt", type=str, default='./car_model.pkl')
-@click.option("--which_server", type=str, default='jdt')
+@click.option("--which_server", type=str, default='hpcl')
 @click.option("--e_ckpt", type=str, default=None)
 @click.option("--max_steps", type=int, default=10000)
-@click.option("--batch", type=int, default=4)
+@click.option("--batch", type=int, default=2)
 @click.option("--lr", type=float, default=0.0001)
 @click.option("--local_rank", type=int, default=0)
 @click.option("--lambda_w", type=float, default=1.0)

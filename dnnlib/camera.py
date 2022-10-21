@@ -97,8 +97,6 @@ def get_camera_pose_v2(range_u, range_v, range_r, mode, invert=False, gaussian=F
     else:
         mean_u, mean_v = sum(range_u) / 2, sum(range_v) / 2
         vu, vv = mean_u - range_u[0], mean_v - range_v[0]
-        print("mean_u and v :", mean_u,mean_v)
-        print("mean_u and v :", vu,vv)
         u = mean_u + vu * val_u
         v = mean_v + vv * val_v
     print("u,v",u,v)
@@ -118,6 +116,7 @@ def get_camera_pose_v2(range_u, range_v, range_r, mode, invert=False, gaussian=F
 def to_sphere(u, v, angular=False):
     T = torch if isinstance(u, torch.Tensor) else np
     if not angular:
+
         theta = 2 * math.pi * u
         phi = T.arccos(1 - 2 * v)
     else:
