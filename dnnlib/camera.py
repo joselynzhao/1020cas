@@ -82,6 +82,9 @@ def get_camera_pose(range_u, range_v, range_r, val_u=0.5, val_v=0.5, val_r=0.5,
 
 
 def get_camera_pose_v2(range_u, range_v, range_r, mode, invert=False, gaussian=False, angular=False):
+    print("range_u",range_u)
+    print("range_v",range_v)
+    print("range_r",range_r)
     r0, rr = range_r[0], range_r[1] - range_r[0]
     val_u, val_v = mode[:,0], mode[:,1]
     # val_r = torch.ones_like(val_u) * 0.5 # updated by Gang Li. (0.5)
@@ -94,16 +97,18 @@ def get_camera_pose_v2(range_u, range_v, range_r, mode, invert=False, gaussian=F
     else:
         mean_u, mean_v = sum(range_u) / 2, sum(range_v) / 2
         vu, vv = mean_u - range_u[0], mean_v - range_v[0]
+        print("mean_u and v :", mean_u,mean_v)
+        print("mean_u and v :", vu,vv)
         u = mean_u + vu * val_u
         v = mean_v + vv * val_v
-    
+    print("u,v",u,v)
     loc = to_sphere(u, v, angular)
     radius = r0 + val_r * rr
     loc = loc * radius.unsqueeze(-1)
     R = look_at(loc)
     RT = torch.eye(4).to(R.device).reshape(1, 4, 4).repeat(R.size(0), 1, 1)
-    RT[:, :3, :3] = R
-    RT[:, :3, -1] = loc
+    RT[:, :3, :3] = R  # 旋转矩阵
+    RT[:, :3, -1] = loc   # 平移矩阵
 
     if invert:
         RT = torch.inverse(RT)
@@ -119,6 +124,7 @@ def to_sphere(u, v, angular=False):
         theta, phi = u, v
     
     cx = T.sin(phi) * T.cos(theta)
+    print("cx: ",cx)
     cy = T.sin(phi) * T.sin(theta)
     cz = T.cos(phi)
     return T.stack([cx, cy, cz], -1)

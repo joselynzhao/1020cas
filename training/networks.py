@@ -139,6 +139,7 @@ def modulated_conv2d(
 
 # ----------------------------------------------------------------------------
 
+
 @persistence.persistent_class
 class FullyConnectedLayer(torch.nn.Module):
     def __init__(self,
@@ -170,6 +171,53 @@ class FullyConnectedLayer(torch.nn.Module):
             x = x.matmul(w.t())
             x = bias_act.bias_act(x, b, act=self.activation)
         return x
+
+
+
+@persistence.persistent_class
+class Mapping_ws(torch.nn.Module):
+    def __init__(self,in_dim=19*512,out_dim=17*512):
+        super().__init__()
+        # self.model = torch.nn.Sequential(
+        #     nn.Linear(19,17),
+        #     nn.LeakyReLU(inplace = True),
+        #     nn.Linear(17,17)
+        # )
+        self.fc1 = nn.Linear(in_dim,in_dim)
+        self.fc2 = nn.Linear(in_dim,out_dim)
+        # self.fc1 = FullyConnectedLayer(in_dim,out_dim)
+        # self.fc2 = FullyConnectedLayer(out_dim,out_dim)
+    def positional_encoding(self, p, size, pe='normal', use_pos=False):  # size = 1, use_pos = Ture
+        if pe == 'gauss':
+            p_transformed = np.pi * p @ size
+            p_transformed = torch.cat(
+                [torch.sin(p_transformed), torch.cos(p_transformed)], dim=-1)
+        else:
+            p_transformed = torch.cat([torch.cat(
+                [torch.sin((2 ** i) * np.pi * p),
+                 torch.cos((2 ** i) * np.pi * p)],
+                dim=-1) for i in range(size)], dim=-1)
+                # [torch.sin((2 ** i)  * p),
+                #  torch.cos((2 ** i) * p)],
+                # dim = -1) for i in range(size)], dim=-1)
+        if use_pos:
+            p_transformed = torch.cat([p_transformed, p], -1)
+        return p_transformed
+
+    def forward(self, w,p):
+        z_dim = w.shape[-1]
+        p = p.unsqueeze(-1)  # b 2 1
+        p = p.to(torch.float64)
+        p = self.positional_encoding(p, int(z_dim/2))  # b 2 512
+        p = p.to(torch.float32)
+        x = torch.cat([w,p],1)  # b 19 512
+        b,n,dim = x.shape
+        x = x.reshape(b,n*dim)
+        x   = F.relu(self.fc1(x))
+        x   = self.fc2(x)
+        x = x.reshape(b,-1,dim)
+        return x
+
 
 
 # ----------------------------------------------------------------------------
@@ -1102,7 +1150,7 @@ class Generator(torch.nn.Module):
                 img_channels=img_channels,
                 **encoder_kwargs)
 
-    def forward(self, z=None, c=None, features=None, views=None,source_views = None, styles=None, truncation_psi=1, truncation_cutoff=None, img=None,
+    def forward(self, z=None, c=None, styles=None, truncation_psi=1, truncation_cutoff=None, img=None,
                 **synthesis_kwargs):
         if styles is None:
             assert z is not None
@@ -1116,9 +1164,6 @@ class Generator(torch.nn.Module):
                                   **synthesis_kwargs)
         else:
             ws = styles
-        if features is not None: synthesis_kwargs['features'] = features
-        if views is not None: synthesis_kwargs['views'] = views
-        if source_views is not None: synthesis_kwargs['source_views'] = source_views
 
         img = self.synthesis(ws, **synthesis_kwargs)  # return a dict
         return img

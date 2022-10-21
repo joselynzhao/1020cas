@@ -327,7 +327,7 @@ class NeRFBlock(nn.Module):
             p_transformed = p
         return p_transformed
 
-    def forward(self, p_in, ray_d,H, z_shape=None,z_app=None,features=None,ws=None, shape=None, requires_grad=False,impl=None,camera_poses=None,**other_kwargs):
+    def forward(self,p_in, ray_d, z_shape=None, z_app=None, ws=None, shape=None, requires_grad=False, impl=None,**other_kwargs):
         with torch.set_grad_enabled(True):
         # with torch.set_grad_enabled(self.training or self.use_sdf or requires_grad):
             impl = 'mlp' if self.tcnn_backend else impl
@@ -340,7 +340,7 @@ class NeRFBlock(nn.Module):
                 sigma_raw = rearrange(sigma_raw, '(b s) d -> b s d', s=option[2]).to(p_in.dtype)
                 feat = rearrange(feat,  '(b s) d -> b s d', s=option[2]).to(p_in.dtype)
             else:
-                feat, sigma_raw = self.forward_nerf(option, p_in, ray_d=ray_d,z_shape=z_shape,z_app=z_app,H=H,ws=ws,features=features,camera_poses=camera_poses,**other_kwargs)
+                feat, sigma_raw = self.forward_nerf(option, p_in, ray_d,  ws=ws, z_shape=z_shape, z_app=z_app,**other_kwargs)
         return feat, sigma_raw  # 4,16384,259    .  4, 16384,1
 
     def forward_inputs(self, p_in, shape=None, impl=None):
@@ -360,45 +360,12 @@ class NeRFBlock(nn.Module):
             p_in.requires_grad_(True)
         return (height, width, n_steps, use_normal), p_in
 
-    def index(self, latent, uv, cam_z=None, image_size=(), z_bounds=None):
-        """
-        Get pixel-aligned image features at 2D image coordinates
-        :param uv (B, N, 2) image points (x,y)
-        :param cam_z ignored (for compatibility)
-        :param image_size image size, either (width, height) or single int.
-        if not specified, assumes coords are in [-1, 1]
-        :param z_bounds ignored (for compatibility)
-        :return (B, L, N) L is latent size
-        """
-        latent_scaling = torch.empty(2, dtype=torch.float32)
-        latent_scaling[0] = latent.shape[-1]
-        latent_scaling[1] = latent.shape[-2]
-        latent_scaling = latent_scaling / (latent_scaling - 1) * 2.0
-        if uv.shape[0] == 1 and latent.shape[0] > 1:
-            uv = uv.expand(latent.shape[0], -1, -1)
-            uv[:, :, :, 1] = uv[:, :, :, 1] * (-1)
-            if len(image_size) > 0:
-                if len(image_size) == 1:
-                    image_size = (image_size, image_size)
-                scale = latent_scaling / image_size
-                uv = uv * scale - 1.0
 
-        uv = uv.unsqueeze(2)  # (B, N, 1, 2)
-        uv[:, :, :, 1] = uv[:, :, :, 1] * (-1)
-        samples = F.grid_sample(
-            latent,
-            uv,
-            align_corners=True,
-            mode="bilinear",
-            padding_mode="border",
-        )
-        return samples[:, :, :, 0]  # (B, C, N)
-
-    def forward_nerf(self, option, p_in, H= None,ray_d=None, ws=None, z_shape=None, z_app=None, features=None,camera_poses=None,insert_layer=None,**unused):  # zj: h中要包含矩阵信息
+    def forward_nerf(self, option, p_in, ray_d=None, ws=None, z_shape=None, z_app=None,**unused):  # zj: h中要包含矩阵信息
         # feature   4，512，32，32
         # print("insert_layer : ", insert_layer)
         height, width, n_steps, use_normal = option
-        with_net_fea = H.with_net_fea
+
 
         # forward nerf feature networks
         p = self.transform_points(p_in.permute(0, 2, 3, 1))  # Bs,h,w,c  64,32,32,60
@@ -407,51 +374,6 @@ class NeRFBlock(nn.Module):
             z_shape = repeat(z_shape, 'b c -> (b s) h w c', h=height, w=width, s=n_steps)
             p = torch.cat([p, z_shape], -1)
         p = p.permute(0, 3, 1, 2)  # BS x C x H x W  64 60 32 32
-
-
-        current_net= "fg_nerf" if features is not None else "bg_nerf"
-        if current_net=="fg_nerf":  # 只有前景网络需要。
-            xyz = rearrange(p_in,'(b s) d h w -> b (h w s) d',h=height,w=width, s=n_steps) #
-            # fg: 4,16384,3  bg: 4, 4096,4
-            p_cam = transform_to_camera_space(p_world=xyz,world_mat=torch.inverse(H.source_camera_metrices[1]))  # 4,16384,3   # 世界坐标转化为 相机坐标。
-            # p_cam = transform_to_camera_space(p_world=xyz,world_mat=H.source_camera_metrices[1])  # 4,16384,3   # 世界坐标转化为 相机坐标。
-            uv = camera_points_to_image(camera_points=p_cam,camera_mat=H.source_camera_metrices[0],invert=True) # # 4,16384,2  # 相机坐标转为图像坐标
-            # uv = camera_points_to_image(camera_points=p_cam,camera_mat=H.source_camera_metrices[0],invert=False) # # 4,16384,2  # 相机坐标转为图像坐标
-            # index 不能调用两次
-
-            ''' test source_img'''
-            # source_img = H.input_image
-            # mapping_img = self.index(latent=source_img, uv=uv, image_size=256)
-            # import torch as th
-            # from PIL import Image
-            # print("source_image:", source_img.shape)
-            # print("mapping_image:", mapping_img.shape)
-            # mapping_img = rearrange(mapping_img, 'b c (h w s) -> s b c h w', w=width, h=height, s=n_steps)
-            # from torchvision.transforms import Resize
-            # resize = Resize(256)
-            # def show_images(batch: th.Tensor, name):
-            #     """ Display a batch of images inline. """
-            #     scaled = ((batch + 1)*127.5).round().clamp(0,255).to(th.uint8).cpu()
-            #     reshaped = scaled.permute(2, 0, 3, 1).reshape([batch.shape[2], -1, 3])
-            #     img = Image.fromarray(reshaped.numpy())
-            #     img.save(name)
-            #     return name
-            # print("mapping_image:", mapping_img.shape)
-            # show_images(source_img, './tmp.png')
-            # for i in range(n_steps):
-            #     show_images(resize(mapping_img[i]),'./tmp'+str(i)+'.png')
-
-            ''' use features'''
-            mapping_features = self.index(latent=features, uv=uv, image_size=width)
-            trans_feature = rearrange(mapping_features, 'b c (h w s) -> (b s) c h w', w=width, h=height, s=n_steps)  # 64,512,32,32
-            from torchvision.transforms import Resize
-            resize = Resize(p.shape[-1])
-            trans_feature = resize(trans_feature)  # 调整维度相同  # 64,256,32,32
-
-            # 对原始feature的处理
-            # features = features.unsqueeze(1)
-            # features = features.repeat(1,n_steps,1,1,1)
-            # features = rearrange(features, "b s c h w -> (b s) c h w")
 
         if height == width == 1:  # MLP
             p = p.squeeze(-1).squeeze(-1)
@@ -464,12 +386,6 @@ class NeRFBlock(nn.Module):
                 if (self.skip_layer is not None) and (idx == self.skip_layer):
                     net = torch.cat([net, p], 1)
                 net = layer(net, ws_i, up=1)  # 保持 64，128，32，32
-                if idx ==insert_layer and current_net=="fg_nerf": # 第二层之后
-                    # 对特征 进行卷积降低维度
-                    features = self.My_embedding_fg(trans_feature) #or = features_2
-                    # 操作之后，feature 和p一样的维度
-
-                    net = net + features if with_net_fea else features
 
         # forward to get the final results
         w_idx = self.n_blocks  # fc_in, self.blocks
@@ -600,6 +516,8 @@ class CameraRay(object):
 
     def get_camera(self, batch_size, device, mode='random', fov=None, force_uniform=False):
         if fov is not None:
+            print("fov:",fov)
+            print("get camera_mat……")
             camera_matrix = get_camera_mat(fov)   # 相机内参
         else:
             camera_matrix = self.camera_matrix
@@ -963,9 +881,9 @@ class VolumeRenderer(object):
         output.fg_depths   = (di, di_trs)
         return output
         
-    def forward_rendering(self, H, output, fg_nerf, nerf_input_cams, nerf_input_feats, features, camera_poses,styles,**other_kwargs):
+    def forward_rendering(self, H, output, fg_nerf, nerf_input_cams, nerf_input_feats, latent_codes, styles,**other_kwargs):
         pixels_world, camera_world, ray_vector = nerf_input_cams
-        # z_shape_obj, z_app_obj = latent_codes[:2]
+        z_shape_obj, z_app_obj = latent_codes[:2]
         height, width = dividable(H.n_points)
         fg_shape = [H.batch_size, height, width, H.n_steps]
         bound = self.get_bound()
@@ -981,7 +899,7 @@ class VolumeRenderer(object):
         if nerf_input_feats is not None:
             p_i = self.I.query_input_features(p_i, nerf_input_feats, fg_shape, bound)
 
-        feat, sigma_raw = fg_nerf(p_i, r_i,H = H,ws=styles,shape=fg_shape,features= features,camera_poses=camera_poses,**other_kwargs)
+        feat, sigma_raw = fg_nerf(p_i, r_i,z_shape_obj,z_app_obj,ws=styles,shape=fg_shape,**other_kwargs)
         feat = rearrange(feat, 'b (n s) d -> b n s d', s=H.n_steps)  # 4 1023 16 259
         sigma_raw = rearrange(sigma_raw.squeeze(-1), 'b (n s) -> b n s', s=H.n_steps)  #  4 1024 16
         sigma = self.get_density(sigma_raw, fg_nerf, training=H.training)      # #  4 1024 16
@@ -997,7 +915,7 @@ class VolumeRenderer(object):
             if nerf_input_feats is not None:
                 p_f = self.I.query_input_features(p_f, nerf_input_feats, fg_shape, bound)
 
-            feat_f, sigma_raw_f = fg_nerf(p_f, r_f, H = H,ws=styles,shape=fg_shape,features= features,camera_poses=camera_poses,**other_kwargs)
+            feat_f, sigma_raw_f = fg_nerf(p_i, r_i,z_shape_obj,z_app_obj,ws=styles,shape=fg_shape,**other_kwargs)
             feat_f      = rearrange(feat_f, 'b (n s) d -> b n s d', s=H.n_steps)
             sigma_raw_f = rearrange(sigma_raw_f.squeeze(-1), 'b (n s) -> b n s', s=H.n_steps)
             sigma_f     = self.get_density(sigma_raw_f, fg_nerf, training=H.training)
@@ -1042,7 +960,7 @@ class VolumeRenderer(object):
             di = self.C.add_noise_to_interval(di)
         p_bg, r_bg = self.C.get_evaluation_points_bg(pixels_world, camera_world, -di)
 
-        feat, sigma_raw = bg_nerf(p_bg, r_bg,z_shape=z_shape_bg,z_app=z_app_bg,H = H, ws=styles_bg, shape=bg_shape)
+        feat, sigma_raw = bg_nerf(p_bg, r_bg,z_shape=z_shape_bg,z_app=z_app_bg, ws=styles_bg, shape=bg_shape)
         feat      = rearrange(feat, 'b (n s) d -> b n s d', s=H.n_bg_steps)
         sigma_raw = rearrange(sigma_raw.squeeze(-1), 'b (n s) -> b n s', s=H.n_bg_steps)
         sigma     = self.get_density(sigma_raw, bg_nerf, training=H.training)
@@ -1074,8 +992,8 @@ class VolumeRenderer(object):
         return_full            = False,
         
         alpha                  = 0,
-        features = None,
-        camera_poses = None,  #zj ：传递的是view的，相当于是目标视角。
+        # features = None,
+        # camera_poses = None,  #zj ：传递的是view的，相当于是目标视角。
         **other_kwargs):
 
         assert (latent_codes is not None) or (styles is not None)
@@ -1145,7 +1063,7 @@ class VolumeRenderer(object):
             # standard volume rendering
             if not only_render_background:
                 output = self.forward_rendering(  # 前景
-                    H, output, fg_nerf, nerf_input_cams, nerf_input_feats,features,camera_poses,styles,**other_kwargs)   #　需要提前给ｉｍｇ＿ｃ赋值
+                    H, output, fg_nerf, nerf_input_cams, nerf_input_feats,latent_codes,styles,**other_kwargs)   #　需要提前给ｉｍｇ＿ｃ赋值
 
             # background rendering (NeRF++)
             if (not not_render_background) and (not self.no_background):
@@ -1845,24 +1763,21 @@ class NeRFSynthesisNetwork(torch.nn.Module):
             else:
                 self.steps = steps / 1000.0
 
-    def forward(self, ws, views=None, source_views=None, features=None,insert_layer=None,**block_kwargs):  # 此时 block_kwargs 为空。
-        #zj1010: 需要增加features，views ，source_views)
-        # 之前的方案是把feature放到了block_kwargs里面。
-
+    def forward(self, ws,**block_kwargs):  # 此时 block_kwargs 为空。
         block_ws, imgs, rand_imgs = [], [], []
         batch_size = block_kwargs['batch_size'] = ws.size(0)
         n_levels, end_l, _, target_res = self.get_current_resolution()
         # zj: add insert_layer
-        if insert_layer is not None:
-            self.insert_layer = insert_layer
-        if "insert_layer" not in block_kwargs:
-            block_kwargs['insert_layer'] = self.insert_layer
+        # if insert_layer is not None:
+        #     self.insert_layer = insert_layer
+        # if "insert_layer" not in block_kwargs:
+        #     block_kwargs['insert_layer'] = self.insert_layer
 
         # cameras, background codes        
         if "camera_matrices" not in block_kwargs:
             if 'camera_mode' in block_kwargs:
-                block_kwargs["camera_matrices"] = self.get_camera(batch_size, device=ws.device, mode=views)
-                block_kwargs["source_camera_metrices"] = self.get_camera(batch_size,device=ws.device,mode=source_views)
+                block_kwargs["camera_matrices"] = self.get_camera(batch_size, device=ws.device, mode=block_kwargs["camera_mode"])
+                # block_kwargs["source_camera_metrices"] = self.get_camera(batch_size,device=ws.device,mode=source_views)
             else:
                 if self.predict_camera:  # 随机选择一个mode
                     rand_mode = ws.new_zeros(ws.size(0), 2)
@@ -1874,11 +1789,11 @@ class NeRFSynthesisNetwork(torch.nn.Module):
                         pred_mode = self.camera_generator(rand_mode - 0.5)
                     mode = rand_mode if self.alpha <= 0 else rand_mode + pred_mode * 0.1
                     block_kwargs["camera_matrices"] = self.get_camera(batch_size, device=ws.device, mode=mode)
-                    block_kwargs["source_camera_metrices"] = self.get_camera(batch_size, device=ws.device, mode=source_views)
+                    # block_kwargs["source_camera_metrices"] = self.get_camera(batch_size, device=ws.device, mode=source_views)
                 else:
                     # zj: 程序执行这里
-                    block_kwargs["camera_matrices"] = self.get_camera(batch_size, device=ws.device,mode=views)
-                    block_kwargs["source_camera_metrices"] = self.get_camera(batch_size, device=ws.device,mode = source_views)
+                    block_kwargs["camera_matrices"] = self.get_camera(batch_size, device=ws.device)
+                    # block_kwargs["source_camera_metrices"] = self.get_camera(batch_size, device=ws.device,mode = source_views)
                     # print("block_kwargs[camera_matrices]", block_kwargs["camera_matrices"][2])
                     # print("block_kwargs[source_camera_metrices]",block_kwargs["source_camera_metrices"][2])
 
@@ -1953,9 +1868,6 @@ class NeRFSynthesisNetwork(torch.nn.Module):
                 nerf_input_feats=nerf_input_feats,  # none
                 return_full=self.reg_full,  #False
                 alpha=self.alpha,  #１
-                features = features,  #将传入 c_feature
-                camera_poses = self.get_camera(batch_size,device=ws.device,mode = views)[1], #取1只是外参，其实可以不用传。
-                # zj : views 是cm, 就是最开始encoder计算出来的pose信息。
                 **block_kwargs)  # zai block_kwarg里面放 C
             
             reg_loss = outputs.get('reg_loss', {})
