@@ -516,6 +516,7 @@ class ImageFolderDataset_mvmc_zj(Dataset):
         return img1.copy(), img2.copy(), camera1, camera2
 
     def _load_raw_image_mvmc_zj(self, raw_idx):
+        print("loading data in mvmc_zj")
         fname = self._image_fnames[raw_idx]  # 000000——00
         image_name = fname.split('.')[0]
         ID = image_name.split('_')[0]
@@ -530,19 +531,20 @@ class ImageFolderDataset_mvmc_zj(Dataset):
         while (step == pair_step):
             pair_step = np.random.randint(0, 16)
             pair_name = f'{ID}_{pair_step:02d}'
-            pair_image = pair_name+'.png'
+            pair_image = pair_name+'.jpg'
             if not os.path.exists(os.path.join(self._path, pair_image)):
                 pair_step = step
         # pair_dir = '{}_0{}.png'.format(ID, pair_step)
         def open_image(fname):
             with self._open_file(fname) as f:
-                if pyspng is not None and self._file_ext(fname) == '.png':
+                if pyspng is not None and self._file_ext(fname) == '.jpg':
                     image = pyspng.load(f.read())  #这条路线
                 else:
                     image = np.array(PIL.Image.open(f))
             if image.ndim == 2:
                 image = image[:, :, np.newaxis]  # HW => HWC
-            if hasattr(self, '_raw_shape') and image.shape[-1] != self.resolution:  # resize input image
+            if image.shape[-1] != 256:  # resize input image
+            # if hasattr(self, '_raw_shape') and image.shape[-1] != 256:  # resize input image
                 image = cv2.resize(image, (256, 256), interpolation=cv2.INTER_AREA)
             image = image.transpose(2, 0, 1)  # HWC => CHW
             return image
@@ -561,7 +563,7 @@ class ImageFolderDataset_mvmc_zj(Dataset):
     def _load_raw_image(self, raw_idx):
         fname = self._image_fnames[raw_idx]  # 000000——00
         with self._open_file(fname) as f:
-            if pyspng is not None and self._file_ext(fname) == '.png':
+            if pyspng is not None and self._file_ext(fname) == '.jpg':
                 image = pyspng.load(f.read())
             else:
                 image = np.array(PIL.Image.open(f))
