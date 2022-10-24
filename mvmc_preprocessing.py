@@ -2,9 +2,10 @@
 import os
 import numpy as np
 import torch
-log_dir = '../mvmc/mvmc'
-out_dir ='./mvmc'
+log_dir = '../dataset/mvmc'
+out_dir ='../dataset/mvmv_zj'
 import json
+
 
 def get_world_mat(camera):
     r = torch.from_numpy(np.array(camera['R']))
