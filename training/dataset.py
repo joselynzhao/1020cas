@@ -508,7 +508,8 @@ class ImageFolderDataset_mvmc_zj(Dataset):
     def __getitem__(self, idx):
         img1,img2,camera1,camera2= self._load_raw_image_mvmc_zj(self._raw_idx[idx])
         assert isinstance(img1, np.ndarray)
-        assert list(img1.shape) == self.image_shape
+        # print(img1.shape,self.image_shape)
+        # assert list(img1.shape) == self.image_shape
         assert img1.dtype == np.uint8
         # if self._xflip[idx]:
         #     assert image.ndim == 3  # CHW
@@ -516,7 +517,7 @@ class ImageFolderDataset_mvmc_zj(Dataset):
         return img1.copy(), img2.copy(), camera1, camera2
 
     def _load_raw_image_mvmc_zj(self, raw_idx):
-        print("loading data in mvmc_zj")
+        # print("loading data in mvmc_zj")
         fname = self._image_fnames[raw_idx]  # 000000——00
         image_name = fname.split('.')[0]
         ID = image_name.split('_')[0]
@@ -537,10 +538,10 @@ class ImageFolderDataset_mvmc_zj(Dataset):
         # pair_dir = '{}_0{}.png'.format(ID, pair_step)
         def open_image(fname):
             with self._open_file(fname) as f:
-                if pyspng is not None and self._file_ext(fname) == '.jpg':
-                    image = pyspng.load(f.read())  #这条路线
-                else:
-                    image = np.array(PIL.Image.open(f))
+                # if pyspng is not None and self._file_ext(fname) == '.jpg':
+                #     image = pyspng.load(f.read())
+                # else:
+                image = np.array(PIL.Image.open(f))
             if image.ndim == 2:
                 image = image[:, :, np.newaxis]  # HW => HWC
             if image.shape[-1] != 256:  # resize input image
@@ -563,10 +564,10 @@ class ImageFolderDataset_mvmc_zj(Dataset):
     def _load_raw_image(self, raw_idx):
         fname = self._image_fnames[raw_idx]  # 000000——00
         with self._open_file(fname) as f:
-            if pyspng is not None and self._file_ext(fname) == '.jpg':
-                image = pyspng.load(f.read())
-            else:
-                image = np.array(PIL.Image.open(f))
+            # if pyspng is not None and self._file_ext(fname) == '.jpg':
+            #     image = pyspng.load(f.read())
+            # else:
+            image = np.array(PIL.Image.open(f))
         if image.ndim == 2:
             image = image[:, :, np.newaxis]  # HW => HWC
         if hasattr(self, '_raw_shape') and image.shape[-1] != self.resolution:  # resize input image
