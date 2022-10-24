@@ -46,8 +46,8 @@ from training.my_utils import *
 data_path = {
     'hpcl':
         {
-            'data1':'~/NeRF/car_stylenerf/output/create_dataset/car_dataset_trunc075/images',
-            'data2':'../dataset/mvmc/images'
+            'data1':'../car_dataset_trunc075/images',
+            'data2':'../dataset/mvmv_zj/images'
 
         },
     'jdt':
@@ -61,7 +61,7 @@ data_path = {
 # --data=./output/car_dataset_3w_test/images --g_ckpt=car_model.pkl --outdir=../car_stylenrf_output/psp_case2/debug
 @click.command()
 @click.option("--g_ckpt", type=str, default='./car_model.pkl')
-@click.option("--which_server", type=str, default='hpcl')
+@click.option("--which_server", type=str, default='jdt')
 @click.option("--e_ckpt", type=str, default=None)
 @click.option("--max_steps", type=int, default=10000)
 @click.option("--batch", type=int, default=2)
@@ -92,6 +92,7 @@ def main(outdir, g_ckpt, e_ckpt,
     num_gpus = 1
     conv2d_gradfix.enabled = True  # Improves training speed.
     device = torch.device('cuda', local_rank)
+    # torch.set_default_tensor_type(torch.DoubleTensor)
 
     # load the pre-trained model
     # if os.path.isdir(g_ckpt):  #基本模型信息
@@ -227,11 +228,12 @@ def main(outdir, g_ckpt, e_ckpt,
         else:
             print("using dataset 2")
             img,_,camera,_ = next(training_set_iterator2)
-            print(img.shape)
+            # print(img.shape)
             # print(camera.shape)
             img = img.to(device).to(torch.float32) / 127.5 - 1
 
             # print(gt_w.shape)
+            # camera_matrices = camera['camera_0'].to(device).to(torch.float64), camera['camera_1'].to(device).to(torch.float64),camera['camera_2'].to(device),None
             camera_matrices = camera['camera_0'].to(device), camera['camera_1'].to(device),camera['camera_2'].to(device),None
             # camera_matrices = get_camera_metrices(camera, device)
             # camera_views = camera_matrices[2][:, :2]
