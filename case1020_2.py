@@ -47,7 +47,7 @@ data_path = {
     'hpcl':
         {
             'data1':'../car_dataset_trunc075/images',
-            'data2':'../car_dataset_trunc075/images'
+            'data2':'./mvmc/images'
 
         },
     'jdt':
@@ -61,7 +61,7 @@ data_path = {
 # --data=./output/car_dataset_3w_test/images --g_ckpt=car_model.pkl --outdir=../car_stylenrf_output/psp_case2/debug
 @click.command()
 @click.option("--g_ckpt", type=str, default='./car_model.pkl')
-@click.option("--which_server", type=str, default='jdt')
+@click.option("--which_server", type=str, default='hpcl')
 @click.option("--e_ckpt", type=str, default=None)
 @click.option("--max_steps", type=int, default=10000)
 @click.option("--batch", type=int, default=2)
@@ -165,17 +165,17 @@ def main(outdir, g_ckpt, e_ckpt,
     # load the dataset
     # data_dir = os.path.join(data, 'images')
     from torch_utils import misc
-    # training_set_kwargs = dict(class_name='training.dataset.ImageFolderDataset_psp_case1', path=data1, use_labels=False,
-    #                            xflip=True)
-    # data_loader_kwargs = dict(pin_memory=True, num_workers=1, prefetch_factor=1)
-    # training_set = dnnlib.util.construct_class_by_name(**training_set_kwargs)
-    # training_set_sampler = misc.InfiniteSampler(dataset=training_set, rank=local_rank, num_replicas=num_gpus,
-    #                                             seed=random_seed)  # for now, single GPU first.
-    # training_set_iterator = torch.utils.data.DataLoader(dataset=training_set, sampler=training_set_sampler,
-    #                                                     batch_size=batch // num_gpus, **data_loader_kwargs)
-    # training_set_iterator = iter(training_set_iterator)
-    # print('Num images: ', len(training_set))
-    # print('Image shape:', training_set.image_shape)
+    training_set_kwargs = dict(class_name='training.dataset.ImageFolderDataset_psp_case1', path=data1, use_labels=False,
+                               xflip=True)
+    data_loader_kwargs = dict(pin_memory=True, num_workers=1, prefetch_factor=1)
+    training_set = dnnlib.util.construct_class_by_name(**training_set_kwargs)
+    training_set_sampler = misc.InfiniteSampler(dataset=training_set, rank=local_rank, num_replicas=num_gpus,
+                                                seed=random_seed)  # for now, single GPU first.
+    training_set_iterator = torch.utils.data.DataLoader(dataset=training_set, sampler=training_set_sampler,
+                                                        batch_size=batch // num_gpus, **data_loader_kwargs)
+    training_set_iterator = iter(training_set_iterator)
+    print('Num images: ', len(training_set))
+    print('Image shape:', training_set.image_shape)
 
     training_set_kwargs2 = dict(class_name='training.dataset.ImageFolderDataset_mvmc_zj', path=data2, use_labels=False,
                                xflip=True)
@@ -212,41 +212,37 @@ def main(outdir, g_ckpt, e_ckpt,
         use_dataset = 1 if i%2==0 else 2
 
         E_optim.zero_grad()  # zero-out gradients
-        # if use_dataset==1:
-            # print("using dataset 1")
-            # img, _, camera, _, gt_w = next(training_set_iterator)
-            # img = img.to(device).to(torch.float32) / 127.5 - 1
-            # gt_w = gt_w.to(device).to(torch.float32)
+        if use_dataset==1:
+            print("using dataset 1")
+            img, _, camera, _, gt_w = next(training_set_iterator)
+            img = img.to(device).to(torch.float32) / 127.5 - 1
+            gt_w = gt_w.to(device).to(torch.float32)
+            camera_matrices = get_camera_metrices(camera, device)
+            camera_views = camera_matrices[2][:, :2]  # first two
+            rec_ws, _ = E(img)
+            rec_ws += ws_avg
+            gen_img = G.get_final_output(styles=rec_ws, camera_matrices= camera_matrices)  #
+            mapping_w = M(rec_ws.detach(), camera_views)
+            loss_dict['loss_w'] = F.smooth_l1_loss(mapping_w, gt_w).mean() * lambda_w
+        else:
+            print("using dataset 2")
+            img,_,camera,_ = next(training_set_iterator2)
+            print(img.shape)
+            # print(camera.shape)
+            img = img.to(device).to(torch.float32) / 127.5 - 1
+
+            # print(gt_w.shape)
+            camera_matrices = camera['camera_0'].to(device), camera['camera_1'].to(device),camera['camera_2'].to(device),None
             # camera_matrices = get_camera_metrices(camera, device)
-            # camera_views = camera_matrices[2][:, :2]  # first two
-            # rec_ws, _ = E(img)
-            # rec_ws += ws_avg
-            # gen_img = G.get_final_output(styles=rec_ws, camera_matrices= camera_matrices)  #
-            # mapping_w = M(rec_ws.detach(), camera_views)
-            # loss_dict['loss_w'] = F.smooth_l1_loss(mapping_w, gt_w).mean() * lambda_w
-        # else:
-        print("using dataset 2")
-        img,_,camera,_ = next(training_set_iterator2)
-        print(img.shape)
-        print(camera.shape)
-        img = img.to(device).to(torch.float32) / 127.5 - 1
-
-        # print(gt_w.shape)
-
-        camera_matrices = get_camera_metrices(camera, device)
-        camera_views = camera_matrices[2][:, :2]  # first two
-        camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
-        print(camera_matrices[1])
-        print(camera_info[1])
-
-
-        rec_ws, _ = E(img)
-        rec_ws += ws_avg
-        # print("rec_ws",rec_ws)
-
-        # print("rec_ws",mapping_w)
-        gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_matrices)  #
-        loss_dict['loss_w'] = 0
+            # camera_views = camera_matrices[2][:, :2]
+            # camera_views[:,1]=0.5# first two
+            # camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
+            # print(camera_matrices[1])
+            # print(camera_info[1])
+            rec_ws, _ = E(img)
+            rec_ws += ws_avg
+            gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_matrices)  #
+            loss_dict['loss_w'] = F.smooth_l1_loss(rec_ws, rec_ws).mean() * lambda_w
 
         # define loss
         loss_dict['img1_lpips'] = loss_fn_alex(img.cpu(), gen_img.cpu()).mean().to(device) * lambda_img
@@ -268,7 +264,7 @@ def main(outdir, g_ckpt, e_ckpt,
             # logger.add_scalar('E_loss/l2', l2_loss_val, i)
             # logger.add_scalar('E_loss/adv', adv_loss_val, i)
 
-        if i % 100 == 0:
+        if i % 1 == 0:
             os.makedirs(f'{outdir}/sample', exist_ok=True)
             with torch.no_grad():
                 sample = torch.cat([img.detach(), gen_img.detach()])
