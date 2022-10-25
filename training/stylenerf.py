@@ -379,7 +379,7 @@ class NeRFBlock(nn.Module):
             p = p.squeeze(-1).squeeze(-1)
 
         net = self.fc_in(p, ws[:, 0] if ws is not None else None)  # 64， 128，32，32
-        print("net:" ,net.shape, net.max(),net.min())
+        # print("net:" ,net.shape, net.max(),net.min())
         # print("net:" ,net)
 
         if self.n_blocks > 1:
@@ -1860,8 +1860,9 @@ class NeRFSynthesisNetwork(torch.nn.Module):
                 block_kwargs["styles_bg"] = ws[:, :self.bg_nerf.num_ws]
                 ws = ws[:, self.bg_nerf.num_ws:]
 
-        print("nerf_input_feats", nerf_input_feats.shape,nerf_input_feats.min(),nerf_input_feats.max())
+        # print("vol_pixels", vol_pixels.shape,vol_pixels.min(),vol_pixels.max())
         
+        # volume rendering
         # volume rendering
         with torch.autograd.profiler.record_function('nerf'):
             if (rand_pixels is not None) and self.training:

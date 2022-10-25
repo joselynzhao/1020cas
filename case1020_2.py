@@ -5,7 +5,7 @@
 from random import random
 from dnnlib import camera
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]='7'
+# os.environ["CUDA_VISIBLE_DEVICES"]='7'
 import numpy as np
 import torch
 import copy
@@ -46,8 +46,8 @@ from training.my_utils import *
 data_path = {
     'hpcl':
         {
-            'data1':'../car_dataset_trunc075/images',
-            'data2':'../dataset/mvmv_zj/images'
+            'data1':'../dataset/car_dataset_trunc075/images',
+            'data2':'../dataset/mvmv/images'
 
         },
     'jdt':
@@ -61,7 +61,7 @@ data_path = {
 # --data=./output/car_dataset_3w_test/images --g_ckpt=car_model.pkl --outdir=../car_stylenrf_output/psp_case2/debug
 @click.command()
 @click.option("--g_ckpt", type=str, default='./car_model.pkl')
-@click.option("--which_server", type=str, default='jdt')
+@click.option("--which_server", type=str, default='hpcl')
 @click.option("--e_ckpt", type=str, default=None)
 @click.option("--max_steps", type=int, default=10000)
 @click.option("--batch", type=int, default=2)
@@ -72,13 +72,14 @@ data_path = {
 @click.option("--lambda_img", type=float, default=1.0)
 @click.option("--lambda_l2", type=float, default=1.0)
 @click.option("--which_c", type=str, default='p2')  # encoder attr
+@click.option("--which_camera", type=str, default='mode')  # init, opt,modeS
 @click.option("--adv", type=float, default=0.05)
 @click.option("--tensorboard", type=bool, default=True)
 @click.option("--outdir", type=str, default='./output/case1020_2/debug')
 @click.option("--resume", type=bool, default=False)  # true则进行resume
 def main(outdir, g_ckpt, e_ckpt,
          max_steps, batch, lr, local_rank, lambda_w, lambda_c,
-         lambda_img, lambda_l2, which_c, adv, tensorboard, resume, which_server):
+         lambda_img, lambda_l2, which_c, adv, tensorboard, resume, which_server,which_camera):
     # local_rank = rank
     # setup(rank, word_size)
     # options_list = click.option()
@@ -179,7 +180,7 @@ def main(outdir, g_ckpt, e_ckpt,
     print('Image shape:', training_set.image_shape)
 
     training_set_kwargs2 = dict(class_name='training.dataset.ImageFolderDataset_mvmc_zj', path=data2, use_labels=False,
-                               xflip=True)
+                               xflip=True,which_camera='init')
     data_loader_kwargs2 = dict(pin_memory=True, num_workers=1, prefetch_factor=1)
     training_set2 = dnnlib.util.construct_class_by_name(**training_set_kwargs2)
     training_set_sampler2 = misc.InfiniteSampler(dataset=training_set2, rank=local_rank, num_replicas=num_gpus,
@@ -189,6 +190,8 @@ def main(outdir, g_ckpt, e_ckpt,
     training_set_iterator2 = iter(training_set_iterator2)
     print('Num images: ', len(training_set2))
     print('Image shape:', training_set2.image_shape)
+    if which_camera=='mode':
+        print("mvmc dataset training with mode!")
 
     start_iter = 0
     if resume:
@@ -214,42 +217,37 @@ def main(outdir, g_ckpt, e_ckpt,
 
         E_optim.zero_grad()  # zero-out gradients
         if use_dataset==1:
-            print("using dataset 1")
+            # print("using dataset 1")
             img, _, camera, _, gt_w = next(training_set_iterator)
             img = img.to(device).to(torch.float32) / 127.5 - 1
             gt_w = gt_w.to(device).to(torch.float32)
             camera_matrices = get_camera_metrices(camera, device)
             camera_views = camera_matrices[2][:,:2]  # first two
-            print(camera_views)
+            # print(camera_views)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
             gen_img = G.get_final_output(styles=rec_ws, camera_matrices= camera_matrices)  #
             mapping_w = M(rec_ws.detach(), camera_views)
             loss_dict['loss_w'] = F.smooth_l1_loss(mapping_w, gt_w).mean() * lambda_w
         else:
-            print("using dataset 2")
+            # print("using dataset 2")
             img,_,camera,_ = next(training_set_iterator2)
-            # print(img.shape)
-            # print(camera.shape)
             img = img.to(device).to(torch.float32) / 127.5 - 1
-
-            # print(gt_w.shape)
-            # camera_matrices = camera['camera_0'].to(device).to(torch.float64), camera['camera_1'].to(device).to(torch.float64),camera['camera_2'].to(device),None
             camera_mat = camera['camera_0'].to(device)
             world_mat = camera['camera_1'].to(device)
             camera_views = camera['camera_2'][:, :2]
-            # world_mat = torch.clamp(world_mat, min=-1.0, max=1.0)
-            # camera_views[:,1]=0.5# first two
+            world_mat = torch.clamp(world_mat, min=-1.0, max=1.0)
+            camera_views[:,1]=0.5# first two
             camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
-            print(world_mat[0])
-            print(camera_info[1][0])
+            # print(world_mat[0])
+            # print(camera_info[1][0])
             # print(world_mat.max(),world_mat.min())
             # print(camera_info[1].max(),camera_info[1].min())
             # print(world_mat.dtype)
             # print(camera_info[1].dtype)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
-            camera_matrices = camera_mat,world_mat,camera_views,None
+            camera_matrices = camera_info if which_camera=='mode' else (camera_mat,world_mat,camera_views,None)
             gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_matrices)  #
             # print(gen_img)
             loss_dict['loss_w'] = F.smooth_l1_loss(rec_ws, rec_ws).mean() * lambda_w

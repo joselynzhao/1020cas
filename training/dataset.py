@@ -447,11 +447,13 @@ class ImageFolderDataset_mvmc_zj(Dataset):
     def __init__(self,
                  path,  # Path to directory or zip.
                  resolution=None,  # Ensure specific resolution, None = highest available.
+                 which_camera=None,
                  **super_kwargs,  # Additional arguments for the Dataset base class.
                  ):
         self._path = path # 直接给到image所在目录
         path_root = os.path.abspath(os.path.join(path, '..'))
-        self.camera_path = os.path.join(path_root,'cameras_init')
+        self.camera_path = os.path.join(path_root,'cameras_init') if which_camera=='init' else os.path.join(path_root,'cameras_opt')
+        print("mvmc dataset training with ",self.camera_path)
         self.w_path = os.path.join(path_root,'ws')
         self._zipfile = None
 
