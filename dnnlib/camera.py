@@ -82,9 +82,9 @@ def get_camera_pose(range_u, range_v, range_r, val_u=0.5, val_v=0.5, val_r=0.5,
 
 
 def get_camera_pose_v2(range_u, range_v, range_r, mode, invert=False, gaussian=False, angular=False):
-    print("range_u",range_u)
-    print("range_v",range_v)
-    print("range_r",range_r)
+    # print("range_u",range_u)
+    # print("range_v",range_v)
+    # print("range_r",range_r)
     r0, rr = range_r[0], range_r[1] - range_r[0]
     val_u, val_v = mode[:,0], mode[:,1]
     # val_r = torch.ones_like(val_u) * 0.5 # updated by Gang Li. (0.5)
@@ -99,7 +99,7 @@ def get_camera_pose_v2(range_u, range_v, range_r, mode, invert=False, gaussian=F
         vu, vv = mean_u - range_u[0], mean_v - range_v[0]
         u = mean_u + vu * val_u
         v = mean_v + vv * val_v
-    print("u,v",u,v)
+    # print("u,v",u,v)
     loc = to_sphere(u, v, angular)
     radius = r0 + val_r * rr
     loc = loc * radius.unsqueeze(-1)
@@ -123,7 +123,6 @@ def to_sphere(u, v, angular=False):
         theta, phi = u, v
     
     cx = T.sin(phi) * T.cos(theta)
-    print("cx: ",cx)
     cy = T.sin(phi) * T.sin(theta)
     cz = T.cos(phi)
     return T.stack([cx, cy, cz], -1)

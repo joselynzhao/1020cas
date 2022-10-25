@@ -379,6 +379,8 @@ class NeRFBlock(nn.Module):
             p = p.squeeze(-1).squeeze(-1)
 
         net = self.fc_in(p, ws[:, 0] if ws is not None else None)  # 64， 128，32，32
+        print("net:" ,net.shape, net.max(),net.min())
+        # print("net:" ,net)
 
         if self.n_blocks > 1:
             for idx, layer in enumerate(self.blocks):
@@ -516,8 +518,8 @@ class CameraRay(object):
 
     def get_camera(self, batch_size, device, mode='random', fov=None, force_uniform=False):
         if fov is not None:
-            print("fov:",fov)
-            print("get camera_mat……")
+            # print("fov:",fov)
+            # print("get camera_mat……")
             camera_matrix = get_camera_mat(fov)   # 相机内参
         else:
             camera_matrix = self.camera_matrix
@@ -1857,6 +1859,8 @@ class NeRFSynthesisNetwork(torch.nn.Module):
             if (self.bg_nerf is not None) and self.bg_nerf.num_ws > 0:
                 block_kwargs["styles_bg"] = ws[:, :self.bg_nerf.num_ws]
                 ws = ws[:, self.bg_nerf.num_ws:]
+
+        print("nerf_input_feats", nerf_input_feats.shape,nerf_input_feats.min(),nerf_input_feats.max())
         
         # volume rendering
         with torch.autograd.profiler.record_function('nerf'):

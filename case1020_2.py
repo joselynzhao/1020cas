@@ -5,7 +5,7 @@
 from random import random
 from dnnlib import camera
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"]='2'
+os.environ["CUDA_VISIBLE_DEVICES"]='7'
 import numpy as np
 import torch
 import copy
@@ -47,13 +47,13 @@ data_path = {
     'hpcl':
         {
             'data1':'../car_dataset_trunc075/images',
-            'data2':'./mvmc/images'
+            'data2':'../dataset/mvmv_zj/images'
 
         },
     'jdt':
         {
             "data1": '/workspace/datasets/car_zj/images',
-            "data2": '../dataset/mvmv_zj/images'
+            "data2": '../dataset/mvmv/images'
         }
 }
 
@@ -61,7 +61,7 @@ data_path = {
 # --data=./output/car_dataset_3w_test/images --g_ckpt=car_model.pkl --outdir=../car_stylenrf_output/psp_case2/debug
 @click.command()
 @click.option("--g_ckpt", type=str, default='./car_model.pkl')
-@click.option("--which_server", type=str, default='hpcl')
+@click.option("--which_server", type=str, default='jdt')
 @click.option("--e_ckpt", type=str, default=None)
 @click.option("--max_steps", type=int, default=10000)
 @click.option("--batch", type=int, default=2)
@@ -92,6 +92,7 @@ def main(outdir, g_ckpt, e_ckpt,
     num_gpus = 1
     conv2d_gradfix.enabled = True  # Improves training speed.
     device = torch.device('cuda', local_rank)
+    # torch.set_default_tensor_type(torch.DoubleTensor)
 
     # load the pre-trained model
     # if os.path.isdir(g_ckpt):  #基本模型信息
@@ -218,7 +219,8 @@ def main(outdir, g_ckpt, e_ckpt,
             img = img.to(device).to(torch.float32) / 127.5 - 1
             gt_w = gt_w.to(device).to(torch.float32)
             camera_matrices = get_camera_metrices(camera, device)
-            camera_views = camera_matrices[2][:, :2]  # first two
+            camera_views = camera_matrices[2][:,:2]  # first two
+            print(camera_views)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
             gen_img = G.get_final_output(styles=rec_ws, camera_matrices= camera_matrices)  #
@@ -227,21 +229,29 @@ def main(outdir, g_ckpt, e_ckpt,
         else:
             print("using dataset 2")
             img,_,camera,_ = next(training_set_iterator2)
-            print(img.shape)
+            # print(img.shape)
             # print(camera.shape)
             img = img.to(device).to(torch.float32) / 127.5 - 1
 
             # print(gt_w.shape)
-            camera_matrices = camera['camera_0'].to(device), camera['camera_1'].to(device),camera['camera_2'].to(device),None
-            # camera_matrices = get_camera_metrices(camera, device)
-            # camera_views = camera_matrices[2][:, :2]
+            # camera_matrices = camera['camera_0'].to(device).to(torch.float64), camera['camera_1'].to(device).to(torch.float64),camera['camera_2'].to(device),None
+            camera_mat = camera['camera_0'].to(device)
+            world_mat = camera['camera_1'].to(device)
+            camera_views = camera['camera_2'][:, :2]
+            # world_mat = torch.clamp(world_mat, min=-1.0, max=1.0)
             # camera_views[:,1]=0.5# first two
-            # camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
-            # print(camera_matrices[1])
-            # print(camera_info[1])
+            camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
+            print(world_mat[0])
+            print(camera_info[1][0])
+            # print(world_mat.max(),world_mat.min())
+            # print(camera_info[1].max(),camera_info[1].min())
+            # print(world_mat.dtype)
+            # print(camera_info[1].dtype)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
+            camera_matrices = camera_mat,world_mat,camera_views,None
             gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_matrices)  #
+            # print(gen_img)
             loss_dict['loss_w'] = F.smooth_l1_loss(rec_ws, rec_ws).mean() * lambda_w
 
         # define loss
