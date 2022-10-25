@@ -3,7 +3,7 @@ import os
 import numpy as np
 import torch
 log_dir = '../dataset/mvmc'
-out_dir ='../dataset/mvmv_zj'
+out_dir ='../dataset/mvmv'
 import json
 
 
@@ -62,7 +62,8 @@ for idx,ID in enumerate(IDs):  # 重新编号IDc
             azim=one['camera_ots']['azim']
             elev=one['camera_ots']['elev']
             roll=one['camera_ots']['roll']
-            azim = np.pi * azim / 180 if azim <=180 else (azim-360) * np.pi /180
+            azim = (180-azim)/360 if azim <=180 else (540-azim)/360
+            # azim = np.pi * azim / 180 if azim <=180 else (azim-360) * np.pi /180
             mode = np.array([azim,elev,roll])
             name_code= f'{idx:0>6d}_{view_id:02d}'
             dst_name = os.path.join(out_dir,"images",f'{name_code}.jpg')

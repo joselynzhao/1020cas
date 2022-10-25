@@ -5,7 +5,7 @@
 from random import random
 from dnnlib import camera
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"]='2'
+os.environ["CUDA_VISIBLE_DEVICES"]='7'
 import numpy as np
 import torch
 import copy
@@ -53,7 +53,7 @@ data_path = {
     'jdt':
         {
             "data1": '/workspace/datasets/car_zj/images',
-            "data2": '../dataset/mvmv_zj/images'
+            "data2": '../dataset/mvmv/images'
         }
 }
 
@@ -219,7 +219,8 @@ def main(outdir, g_ckpt, e_ckpt,
             img = img.to(device).to(torch.float32) / 127.5 - 1
             gt_w = gt_w.to(device).to(torch.float32)
             camera_matrices = get_camera_metrices(camera, device)
-            camera_views = camera_matrices[2][:, :2]  # first two
+            camera_views = camera_matrices[2][:,:2]  # first two
+            print(camera_views)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
             gen_img = G.get_final_output(styles=rec_ws, camera_matrices= camera_matrices)  #
@@ -234,16 +235,23 @@ def main(outdir, g_ckpt, e_ckpt,
 
             # print(gt_w.shape)
             # camera_matrices = camera['camera_0'].to(device).to(torch.float64), camera['camera_1'].to(device).to(torch.float64),camera['camera_2'].to(device),None
-            camera_matrices = camera['camera_0'].to(device), camera['camera_1'].to(device),camera['camera_2'].to(device),None
-            # camera_matrices = get_camera_metrices(camera, device)
-            # camera_views = camera_matrices[2][:, :2]
+            camera_mat = camera['camera_0'].to(device)
+            world_mat = camera['camera_1'].to(device)
+            camera_views = camera['camera_2'][:, :2]
+            # world_mat = torch.clamp(world_mat, min=-1.0, max=1.0)
             # camera_views[:,1]=0.5# first two
-            # camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
-            # print(camera_matrices[1])
-            # print(camera_info[1])
+            camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
+            print(world_mat[0])
+            print(camera_info[1][0])
+            # print(world_mat.max(),world_mat.min())
+            # print(camera_info[1].max(),camera_info[1].min())
+            # print(world_mat.dtype)
+            # print(camera_info[1].dtype)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
+            camera_matrices = camera_mat,world_mat,camera_views,None
             gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_matrices)  #
+            # print(gen_img)
             loss_dict['loss_w'] = F.smooth_l1_loss(rec_ws, rec_ws).mean() * lambda_w
 
         # define loss
@@ -266,7 +274,7 @@ def main(outdir, g_ckpt, e_ckpt,
             # logger.add_scalar('E_loss/l2', l2_loss_val, i)
             # logger.add_scalar('E_loss/adv', adv_loss_val, i)
 
-        if i % 100 == 0:
+        if i % 1 == 0:
             os.makedirs(f'{outdir}/sample', exist_ok=True)
             with torch.no_grad():
                 sample = torch.cat([img.detach(), gen_img.detach()])
