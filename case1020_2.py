@@ -5,7 +5,7 @@
 from random import random
 from dnnlib import camera
 import os
-# os.environ["CUDA_VISIBLE_DEVICES"]='7'
+os.environ["CUDA_VISIBLE_DEVICES"]='6'
 import numpy as np
 import torch
 import copy
@@ -61,7 +61,7 @@ data_path = {
 # --data=./output/car_dataset_3w_test/images --g_ckpt=car_model.pkl --outdir=../car_stylenrf_output/psp_case2/debug
 @click.command()
 @click.option("--g_ckpt", type=str, default='./car_model.pkl')
-@click.option("--which_server", type=str, default='hpcl')
+@click.option("--which_server", type=str, default='jdt')
 @click.option("--e_ckpt", type=str, default=None)
 @click.option("--max_steps", type=int, default=10000)
 @click.option("--batch", type=int, default=2)
@@ -72,7 +72,7 @@ data_path = {
 @click.option("--lambda_img", type=float, default=1.0)
 @click.option("--lambda_l2", type=float, default=1.0)
 @click.option("--which_c", type=str, default='p2')  # encoder attr
-@click.option("--which_camera", type=str, default='mode')  # init, opt,modeS
+@click.option("--which_camera", type=str, default='init')  # init, opt,modeS
 @click.option("--adv", type=float, default=0.05)
 @click.option("--tensorboard", type=bool, default=True)
 @click.option("--outdir", type=str, default='./output/case1020_2/debug')
@@ -236,10 +236,12 @@ def main(outdir, g_ckpt, e_ckpt,
             camera_mat = camera['camera_0'].to(device)
             world_mat = camera['camera_1'].to(device)
             camera_views = camera['camera_2'][:, :2]
-            world_mat = torch.clamp(world_mat, min=-1.0, max=1.0)
+            world_mat = torch.clamp(world_mat, min=-0.9999, max=0.9999)  # nothing works
             camera_views[:,1]=0.5# first two
+            # world_mat[:,2,0] = 0
             camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
-            # print(world_mat[0])
+
+            # print(world_mat)
             # print(camera_info[1][0])
             # print(world_mat.max(),world_mat.min())
             # print(camera_info[1].max(),camera_info[1].min())
@@ -272,7 +274,7 @@ def main(outdir, g_ckpt, e_ckpt,
             # logger.add_scalar('E_loss/l2', l2_loss_val, i)
             # logger.add_scalar('E_loss/adv', adv_loss_val, i)
 
-        if i % 1 == 0:
+        if i % 100 == 0:
             os.makedirs(f'{outdir}/sample', exist_ok=True)
             with torch.no_grad():
                 sample = torch.cat([img.detach(), gen_img.detach()])
