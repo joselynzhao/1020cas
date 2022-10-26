@@ -5,6 +5,7 @@ import torch
 log_dir = '../dataset/mvmc'
 out_dir ='../dataset/mvmv'
 import json
+import shutil
 
 
 def get_world_mat(camera):
@@ -39,40 +40,48 @@ def move_images(src_file,dst_file):
         print(e)
         print("rename file failed")
 
+
+def generate_dataset(dataset,name):
+    os.makedirs(os.path.join(out_dir,name,'images'), exist_ok=True)
+    os.makedirs(os.path.join(out_dir,name,'cameras_init'), exist_ok=True)
+    os.makedirs(os.path.join(out_dir,name,'cameras_opt'), exist_ok=True)
+    for idx,ID in enumerate(dataset):  # 重新编号ID
+        json_path = os.path.join(log_dir,ID,"annotations.json")
+        with open(json_path,'r') as f:
+            info = f.read()
+            json_data = json.loads(info)
+            id_number = json_data['id']
+            annotations = json_data['annotations']  # list
+            # datas =[]
+            for view_id,one in enumerate(annotations):
+                camera_initial = one['camera_initial']
+                world_mat_init,fov_init=get_world_mat(camera_initial)
+                camera_mat_init = get_camera_mat(fov_init).squeeze()
+                camera_optimizerd = one['camera_optimized']
+                world_mat_opt,fov_opt = get_world_mat(camera_optimizerd)
+                camera_mat_opt  = get_camera_mat(fov_opt).squeeze()
+
+                azim=one['camera_ots']['azim']
+                elev=one['camera_ots']['elev']
+                roll=one['camera_ots']['roll']
+                azim = (180-azim)/360 if azim <=180 else (540-azim)/360
+                # azim = np.pi * azim / 180 if azim <=180 else (azim-360) * np.pi /180
+                mode = np.array([azim,elev,roll])
+                name_code= f'{idx:0>6d}_{view_id:02d}'
+                dst_name = os.path.join(out_dir,name,"images",f'{name_code}.jpg')
+                src_name = os.path.join(log_dir,ID,"images", one['filename'])
+                shutil.copyfile(src_name,dst_name)
+                # move_images(src_name,dst_name)
+                np.savez(os.path.join(out_dir,name,'cameras_init',f'{name_code}.npz'),camera_0=camera_mat_init, camera_1=world_mat_init,camera_2=mode)
+                np.savez(os.path.join(out_dir,name,'cameras_opt',f'{name_code}.npz'),camera_0=camera_mat_opt, camera_1=world_mat_opt,camera_2=mode)
+
 IDs = os.listdir(log_dir)
-os.makedirs(os.path.join(out_dir,'images'), exist_ok=True)
-os.makedirs(os.path.join(out_dir,'cameras_init'), exist_ok=True)
-os.makedirs(os.path.join(out_dir,'cameras_opt'), exist_ok=True)
-for idx,ID in enumerate(IDs):  # 重新编号IDc
-    json_path = os.path.join(log_dir,ID,"annotations.json")
-    with open(json_path,'r') as f:
-        info = f.read()
-        json_data = json.loads(info)
-        id_number = json_data['id']
-        annotations = json_data['annotations']  # list
-        # datas =[]
-        for view_id,one in enumerate(annotations):
-            camera_initial = one['camera_initial']
-            world_mat_init,fov_init=get_world_mat(camera_initial)
-            camera_mat_init = get_camera_mat(fov_init).squeeze()
-            camera_optimizerd = one['camera_optimized']
-            world_mat_opt,fov_opt = get_world_mat(camera_optimizerd)
-            camera_mat_opt  = get_camera_mat(fov_opt).squeeze()
-
-            azim=one['camera_ots']['azim']
-            elev=one['camera_ots']['elev']
-            roll=one['camera_ots']['roll']
-            azim = (180-azim)/360 if azim <=180 else (540-azim)/360
-            # azim = np.pi * azim / 180 if azim <=180 else (azim-360) * np.pi /180
-            mode = np.array([azim,elev,roll])
-            name_code= f'{idx:0>6d}_{view_id:02d}'
-            dst_name = os.path.join(out_dir,"images",f'{name_code}.jpg')
-            src_name = os.path.join(log_dir,ID,"images", one['filename'])
-            move_images(src_name,dst_name)
-            np.savez(os.path.join(out_dir,'cameras_init',f'{name_code}.npz'),camera_0=camera_mat_init, camera_1=world_mat_init,camera_2=mode)
-            np.savez(os.path.join(out_dir,'cameras_opt',f'{name_code}.npz'),camera_0=camera_mat_opt, camera_1=world_mat_opt,camera_2=mode)
-
-
+print(len(IDs))
+training_set = IDs[:-10]
+testing_set = IDs[-10:]
+print(len(training_set), len(testing_set))
+generate_dataset(training_set,"training_set")
+generate_dataset(testing_set,"testing_set")
 
 
 

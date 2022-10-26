@@ -53,7 +53,7 @@ data_path = {
     'jdt':
         {
             "data1": '/workspace/datasets/car_zj/images',
-            "data2": '../dataset/mvmv/images'
+            "data2": '../dataset/mvmv/training_set/images'
         }
 }
 
@@ -233,13 +233,13 @@ def main(outdir, g_ckpt, e_ckpt,
             # print("using dataset 2")
             img,_,camera,_ = next(training_set_iterator2)
             img = img.to(device).to(torch.float32) / 127.5 - 1
-            camera_mat = camera['camera_0'].to(device)
-            world_mat = camera['camera_1'].to(device)
+            # camera_mat = camera['camera_0'].to(device)
+            # world_mat = camera['camera_1'].to(device)
             camera_views = camera['camera_2'][:, :2]
-            world_mat = torch.clamp(world_mat, min=-0.9999, max=0.9999)  # nothing works
+            # world_mat = torch.clamp(world_mat, min=-0.9999, max=0.9999)  # nothing works
             camera_views[:,1]=0.5# first two
             # world_mat[:,2,0] = 0
-            camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views, fov=60.0)
+            camera_info = G.synthesis.get_camera(batch, device=device, mode=camera_views)
 
             # print(world_mat)
             # print(camera_info[1][0])
@@ -249,8 +249,8 @@ def main(outdir, g_ckpt, e_ckpt,
             # print(camera_info[1].dtype)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
-            camera_matrices = camera_info if which_camera=='mode' else (camera_mat,world_mat,camera_views,None)
-            gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_matrices)  #
+            # camera_matrices = camera_info if which_camera=='mode' else (camera_mat,world_mat,camera_views,None)
+            gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_info)  #
             # print(gen_img)
             loss_dict['loss_w'] = F.smooth_l1_loss(rec_ws, rec_ws).mean() * lambda_w
 
@@ -274,7 +274,7 @@ def main(outdir, g_ckpt, e_ckpt,
             # logger.add_scalar('E_loss/l2', l2_loss_val, i)
             # logger.add_scalar('E_loss/adv', adv_loss_val, i)
 
-        if i % 100 == 0:
+        if i % 100 == 0 or (i-1) % 100 == 0:
             os.makedirs(f'{outdir}/sample', exist_ok=True)
             with torch.no_grad():
                 sample = torch.cat([img.detach(), gen_img.detach()])
