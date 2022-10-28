@@ -5,7 +5,7 @@
 from random import random
 from dnnlib import camera
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]='6'
+os.environ["CUDA_VISIBLE_DEVICES"]='7'
 import numpy as np
 import torch
 import copy
@@ -47,7 +47,7 @@ data_path = {
     'hpcl':
         {
             'data1':'../dataset/car_dataset_trunc075/images',
-            'data2':'../dataset/mvmv/images'
+            'data2':'../dataset/mvmv/training_set/images'
 
         },
     'jdt':
@@ -180,7 +180,7 @@ def main(outdir, g_ckpt, e_ckpt,
     print('Image shape:', training_set.image_shape)
 
     training_set_kwargs2 = dict(class_name='training.dataset.ImageFolderDataset_mvmc_zj', path=data2, use_labels=False,
-                               xflip=True,which_camera='init')
+                               xflip=True,which_camera=which_camera)
     data_loader_kwargs2 = dict(pin_memory=True, num_workers=1, prefetch_factor=1)
     training_set2 = dnnlib.util.construct_class_by_name(**training_set_kwargs2)
     training_set_sampler2 = misc.InfiniteSampler(dataset=training_set2, rank=local_rank, num_replicas=num_gpus,
@@ -222,7 +222,7 @@ def main(outdir, g_ckpt, e_ckpt,
             img = img.to(device).to(torch.float32) / 127.5 - 1
             gt_w = gt_w.to(device).to(torch.float32)
             camera_matrices = get_camera_metrices(camera, device)
-            camera_views = camera_matrices[2][:,:2]  # first two
+            camera_views = camera_matrices[2][:,:2].to(device)  # first two
             # print(camera_views)
             rec_ws, _ = E(img)
             rec_ws += ws_avg
@@ -235,7 +235,7 @@ def main(outdir, g_ckpt, e_ckpt,
             img = img.to(device).to(torch.float32) / 127.5 - 1
             # camera_mat = camera['camera_0'].to(device)
             # world_mat = camera['camera_1'].to(device)
-            camera_views = camera['camera_2'][:, :2]
+            camera_views = camera['camera_2'][:, :2].to(device)   # TODO
             # world_mat = torch.clamp(world_mat, min=-0.9999, max=0.9999)  # nothing works
             camera_views[:,1]=0.5# first two
             # world_mat[:,2,0] = 0
