@@ -32,6 +32,7 @@ from torch_utils.ops import upfirdn2d
 from torch_utils.ops import bias_act
 from torch_utils.ops import fma
 from torch_utils.ops import filtered_lrelu
+from einops import repeat, rearrange
 
 
 # ----------------------------------------------------------------------------
@@ -176,17 +177,18 @@ class FullyConnectedLayer(torch.nn.Module):
 
 @persistence.persistent_class
 class Mapping_ws(torch.nn.Module):
-    def __init__(self,in_dim=19*512,out_dim=17*512):
+    def __init__(self,n_w,device=None):
         super().__init__()
-        # self.model = torch.nn.Sequential(
-        #     nn.Linear(19,17),
-        #     nn.LeakyReLU(inplace = True),
-        #     nn.Linear(17,17)
-        # )
-        self.fc1 = nn.Linear(in_dim,in_dim)
-        self.fc2 = nn.Linear(in_dim,out_dim)
-        # self.fc1 = FullyConnectedLayer(in_dim,out_dim)
-        # self.fc2 = FullyConnectedLayer(out_dim,out_dim)
+        model = torch.nn.Sequential(
+            nn.Linear(1024, 768),
+            nn.LeakyReLU(inplace=True),
+            nn.Linear(768,512)
+        )
+        self.device = device
+        self.FC = nn.ModuleList()
+        for i in range(n_w):
+            self.FC.append(model)
+
     def positional_encoding(self, p, size, pe='normal', use_pos=False):  # size = 1, use_pos = Ture
         if pe == 'gauss':
             p_transformed = np.pi * p @ size
@@ -197,26 +199,25 @@ class Mapping_ws(torch.nn.Module):
                 [torch.sin((2 ** i) * np.pi * p),
                  torch.cos((2 ** i) * np.pi * p)],
                 dim=-1) for i in range(size)], dim=-1)
-                # [torch.sin((2 ** i)  * p),
-                #  torch.cos((2 ** i) * p)],
-                # dim = -1) for i in range(size)], dim=-1)
         if use_pos:
             p_transformed = torch.cat([p_transformed, p], -1)
         return p_transformed
 
     def forward(self, w,p):
-        z_dim = w.shape[-1]
+        batch,n_dim,z_dim = w.shape
         p = p.unsqueeze(-1)  # b 2 1
         p = p.to(torch.float64)
-        p = self.positional_encoding(p, int(z_dim/2))  # b 2 512
+        p = self.positional_encoding(p, int(z_dim/4))  # b 2 256
         p = p.to(torch.float32)
-        x = torch.cat([w,p],1)  # b 19 512
-        b,n,dim = x.shape
-        x = x.reshape(b,n*dim)
-        x   = F.relu(self.fc1(x))
-        x   = self.fc2(x)
-        x = x.reshape(b,-1,dim)
-        return x
+        p = p.reshape(batch, 1,-1)  # b, 1, 512
+        p = p.repeat(1, n_dim,1)  # b, 17, 512
+        x = torch.cat([w,p],-1)  # b 17 1024
+        x = rearrange(x,'b n l -> n b l')
+        out = torch.empty(n_dim,batch,z_dim).to(self.device)
+        for i in range(n_dim):
+            out[i] = self.FC[i](x[i])
+        out = rearrange(out,'n b l -> b n l')
+        return out
 
 
 

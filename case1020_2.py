@@ -5,7 +5,7 @@
 from random import random
 from dnnlib import camera
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]='7'
+# os.environ["CUDA_VISIBLE_DEVICES"]='0'
 import numpy as np
 import torch
 import copy
@@ -130,7 +130,8 @@ def main(outdir, g_ckpt, e_ckpt,
             device)  # num_layers, input_nc, n_styles,mode='ir
 
     from training.networks import Mapping_ws
-    M = Mapping_ws().to(device)
+    M = Mapping_ws(17,device=device).to(device)
+    # print(M)
     # print(M)
     # return
         # if num_gpus >1:
@@ -235,7 +236,7 @@ def main(outdir, g_ckpt, e_ckpt,
             img = img.to(device).to(torch.float32) / 127.5 - 1
             # camera_mat = camera['camera_0'].to(device)
             # world_mat = camera['camera_1'].to(device)
-            camera_views = camera['camera_2'][:, :2].to(device)   # TODO
+            camera_views = camera['camera_2'][:, :2].to(device)
             # world_mat = torch.clamp(world_mat, min=-0.9999, max=0.9999)  # nothing works
             camera_views[:,1]=0.5# first two
             # world_mat[:,2,0] = 0
