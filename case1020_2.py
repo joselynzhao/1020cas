@@ -64,9 +64,10 @@ data_path = {
 @click.option("--which_server", type=str, default='jdt')
 @click.option("--e_ckpt", type=str, default=None)
 @click.option("--max_steps", type=int, default=10000)
-@click.option("--batch", type=int, default=2)
+@click.option("--batch", type=int, default=8)
 @click.option("--lr", type=float, default=0.0001)
 @click.option("--local_rank", type=int, default=0)
+@click.option("--mapping_way", type=int, default=3)
 @click.option("--lambda_w", type=float, default=1.0)
 @click.option("--lambda_c", type=float, default=1.0)
 @click.option("--lambda_img", type=float, default=1.0)
@@ -78,7 +79,7 @@ data_path = {
 @click.option("--outdir", type=str, default='./output/case1020_2/debug')
 @click.option("--resume", type=bool, default=False)  # true则进行resume
 def main(outdir, g_ckpt, e_ckpt,
-         max_steps, batch, lr, local_rank, lambda_w, lambda_c,
+         max_steps, batch, lr, local_rank, lambda_w, lambda_c,mapping_way,
          lambda_img, lambda_l2, which_c, adv, tensorboard, resume, which_server,which_camera):
     # local_rank = rank
     # setup(rank, word_size)
@@ -88,6 +89,7 @@ def main(outdir, g_ckpt, e_ckpt,
     data2 = data_path[which_server]['data2']
     random_seed = 25
     np.random.seed(random_seed)
+    # torch.autograd.set_detect_anomaly(True)
 
     # num_gpus = torch.cuda.device_count()  # 自动获取显卡数量
     num_gpus = 1
@@ -110,8 +112,9 @@ def main(outdir, g_ckpt, e_ckpt,
         print(f"resume from {resume_pkl_path}")
         with dnnlib.util.open_url(resume_pkl_path) as fp:
             network = legacy.load_network_pkl(fp)
-            E = network['E'].requires_grad_(True).to(device)
+            E = network['E'].requires_grad_(False).to(device)
             G = network['G'].requires_grad_(False).to(device)
+            M = network['M'].requires_grad_(False).to(device)
     else:
         print('Loading networks from "%s"...' % g_ckpt)
         with dnnlib.util.open_url(g_ckpt) as fp:
@@ -129,9 +132,9 @@ def main(outdir, g_ckpt, e_ckpt,
         E = GradualStyleEncoder1(50, 3, G.mapping.num_ws, 'ir_se', which_c=which_c).to(
             device)  # num_layers, input_nc, n_styles,mode='ir
 
-    from training.networks import Mapping_ws
-    M = Mapping_ws(17,device=device).to(device)
-    # print(M)
+        from training.networks import Mapping_ws
+        M = Mapping_ws(17,mapping_way=mapping_way,device=device).to(device)
+        # print(M)
     # print(M)
     # return
         # if num_gpus >1:
@@ -226,10 +229,12 @@ def main(outdir, g_ckpt, e_ckpt,
             camera_views = camera_matrices[2][:,:2].to(device)  # first two
             # print(camera_views)
             rec_ws, _ = E(img)
-            rec_ws += ws_avg
-            gen_img = G.get_final_output(styles=rec_ws, camera_matrices= camera_matrices)  #
+            # rec_ws += ws_avg
+            gen_img = G.get_final_output(styles=rec_ws+ws_avg, camera_matrices= camera_matrices)  #
             mapping_w = M(rec_ws.detach(), camera_views)
+            mapping_w += ws_avg
             loss_dict['loss_w'] = F.smooth_l1_loss(mapping_w, gt_w).mean() * lambda_w
+
         else:
             # print("using dataset 2")
             img,_,camera,_ = next(training_set_iterator2)

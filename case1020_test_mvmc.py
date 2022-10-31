@@ -64,6 +64,7 @@ data2={
 # @click.option('--insert_layer',type=int, default=3)
 # @click.option('--group_name',type=str, default='01')
 @click.option("--batch", type=int, default=8)
+@click.option("--mapping_way", type=int, default=1)
 @click.option("--random_seed", type=int, default=25)
 # @click.option("--which_c", type=str, default='p2')
 @click.option("--local_rank", type=int, default=0)
@@ -75,6 +76,7 @@ def generate_images(
         # network_pkl: str,
         encoder_pkl: str,
         testing_set:int,
+        mapping_way:int,
         # data: str,
         # insert_layer:int,
         batch: int,
@@ -125,14 +127,14 @@ def generate_images(
     print('Image shape:', training_set.image_shape)
 
     # seed_list = [11]
-
+    w = None
+    gen_img_w = None
     for idx in range(6):
         ws_avg = G.mapping.w_avg[None, None, :]
         info = next(training_set_iterator)
         img = info[0]
         camera=info[2]
         img = img.to(device).to(torch.float32) / 127.5 - 1
-
         if testing_set == 2:
             camera_views = camera['camera_2'][:, :2].to(device).to(torch.float32)
             camera_views[:, 1] = 0.5
@@ -141,14 +143,20 @@ def generate_images(
         else:
             camera_matrices = get_camera_metrices(camera, device)
             camera_views = camera_matrices[2][:,:2].to(device)
+            w = info[4].to(device)
+            # w +=ws_avg
 
 
 
         rec_ws, _ = E(img)
-        rec_ws += ws_avg
-        gen_img = G.get_final_output(styles=rec_ws, camera_matrices=camera_matrices)
+        # rec_ws += ws_avg
+        gen_img = G.get_final_output(styles=rec_ws+ws_avg, camera_matrices=camera_matrices)
+        # print(M)
         mapping_w = M(rec_ws, camera_views)
+        mapping_w+=ws_avg
         gen_img_MappingNet = G.get_final_output(styles=mapping_w, camera_matrices=camera_matrices)
+        if w is not None:
+            gen_img_w = G.get_final_output(styles=w, camera_matrices=camera_matrices)
 
 
         from torchvision import utils
@@ -157,7 +165,10 @@ def generate_images(
         file_name = '-'.join(root_path[2:])
         # os.makedirs(f"{store_dir}/sample", exist_ok=True)
         with torch.no_grad():
-            sample = torch.cat([img.detach(),gen_img.detach(),gen_img_MappingNet.detach()])
+            if gen_img_w is not None:
+                sample = torch.cat([img.detach(),gen_img.detach(),gen_img_MappingNet.detach(),gen_img_w.detach()])
+            else:
+                sample = torch.cat([img.detach(), gen_img.detach(), gen_img_MappingNet.detach()])
             utils.save_image(
                 sample,
                 f"{store_dir}/{file_name}_{random_seed}_{idx}.png",

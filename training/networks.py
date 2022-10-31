@@ -177,12 +177,25 @@ class FullyConnectedLayer(torch.nn.Module):
 
 @persistence.persistent_class
 class Mapping_ws(torch.nn.Module):
-    def __init__(self,n_w,device=None):
+    def __init__(self,n_w,mapping_way=1,device=None):
         super().__init__()
+        if mapping_way == 1:
+            in_dim = 1024
+            mi_dim = 768
+            out_dim = 512
+        elif mapping_way ==2:
+            in_dim = 514
+            mi_dim = 512
+            out_dim = 512
+        else:
+            in_dim = 512
+            mi_dim = 512
+            out_dim = 512
+        self.mapping_way = mapping_way
         model = torch.nn.Sequential(
-            nn.Linear(1024, 768),
+            nn.Linear(in_dim, mi_dim),
             nn.LeakyReLU(inplace=True),
-            nn.Linear(768,512)
+            nn.Linear(mi_dim,out_dim)
         )
         self.device = device
         self.FC = nn.ModuleList()
@@ -204,20 +217,67 @@ class Mapping_ws(torch.nn.Module):
         return p_transformed
 
     def forward(self, w,p):
-        batch,n_dim,z_dim = w.shape
-        p = p.unsqueeze(-1)  # b 2 1
-        p = p.to(torch.float64)
-        p = self.positional_encoding(p, int(z_dim/4))  # b 2 256
-        p = p.to(torch.float32)
-        p = p.reshape(batch, 1,-1)  # b, 1, 512
-        p = p.repeat(1, n_dim,1)  # b, 17, 512
-        x = torch.cat([w,p],-1)  # b 17 1024
-        x = rearrange(x,'b n l -> n b l')
-        out = torch.empty(n_dim,batch,z_dim).to(self.device)
-        for i in range(n_dim):
-            out[i] = self.FC[i](x[i])
-        out = rearrange(out,'n b l -> b n l')
-        return out
+        '''原始方案'''
+        # if hasattr(self,'mapping_way'):
+        #     mapping_way = self.mapping_way
+        # self.mapping_way = mapping_way
+        mapping_way = self.mapping_way
+        if mapping_way == 1:
+            batch,n_dim,z_dim = w.shape
+            p = p.unsqueeze(-1)  # b 2 1
+            p = p.to(torch.float64)
+            p = self.positional_encoding(p, int(z_dim/4))  # b 2 256
+            p = p.to(torch.float32)
+            p = p.reshape(batch, 1,-1)  # b, 1, 512
+            p = p.repeat(1, n_dim,1)  # b, 17, 512
+            x = torch.cat([w,p],-1)  # b 17 1024
+            x = rearrange(x,'b n l -> n b l')
+            out = torch.empty(n_dim,batch,z_dim).to(self.device)
+            for i in range(n_dim):
+                out[i] = self.FC[i](x[i])
+            out = rearrange(out,'n b l -> b n l')
+            # out *= 6.0
+            return out
+        elif mapping_way ==2: # 不适用position encoding
+            # in\mi\out =  512+2\ 512\512
+            batch, n_dim, z_dim = w.shape
+            p = p.unsqueeze(-1)  # b 2 1
+            p = p.reshape(batch, 1, -1) # b 1, 2
+            p = p.repeat(1, n_dim, 1) # b ,17,2
+            x = torch.cat([w,p],-1) # b, 17, 512+2
+            x = rearrange(x, 'b n l -> n b l')
+            print(x.shape)
+            out = []
+            for i in range(n_dim):
+                out.append(self.FC[i](x[i]))
+            out = torch.stack(out,dim=0) # 17,b, 512
+            out = rearrange(out, 'n b l -> b n l')
+            return out
+        elif mapping_way == 3:  # 不适用p
+            # in\mi\out = 512
+            batch, n_dim, z_dim = w.shape
+            x  = rearrange(w, 'b n l -> n b l') # 17 b 512
+            out = []
+            for i in range(n_dim):
+                out.append(self.FC[i](x[i]))
+            out = torch.stack(out, dim=0)  # 17,b, 512
+            out = rearrange(out, 'n b l -> b n l')
+            # print("out:",out.max(),out.min())
+            # print("w:",w.max(),w.min())
+            return out
+        else:
+            return w
+
+
+
+
+
+        # print("out:", out.max(), out.min())
+        # print("w:", w.max(), w.min())
+        # return out+w
+
+        # '''不适用position encoding'''
+
 
 
 
