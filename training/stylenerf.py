@@ -275,7 +275,7 @@ class NeRFBlock(nn.Module):
             
         else:
             # self.My_embedding_fg = Embedding_handle(512,128)
-            self.My_embedding_fg = Style2Layer(512, 128, 0, activation=self.activation, magnitude_ema_beta=self.magnitude_ema_beta)
+            # self.My_embedding_fg = Style2Layer(512, 128, 0, activation=self.activation, magnitude_ema_beta=self.magnitude_ema_beta)
             # self.My_embedding_bg = Embedding_handle(256,64)
             # self.My_embedding = Embedding_handle(dim_embed)
             # self.MatchConv_fg = MatchConv(256,128)

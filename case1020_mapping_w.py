@@ -145,16 +145,16 @@ def main(outdir, g_ckpt, e_ckpt,
     # print(G)
     # print(E)
     params = list(E.parameters())
-    fg_net = G.synthesis.fg_nerf.My_embedding_fg
+    # fg_net = G.synthesis.fg_nerf.My_embedding_fg
 
     # bg_net = G.synthesis.bg_nerf
-    params += list(fg_net.parameters())
+    # params += list(fg_net.parameters())
     params += list(M.parameters())
     # params+= list(bg_net.parameters())
     E_optim = optim.Adam(params, lr=lr, betas=(0.9, 0.99))
     scheduler = torch.optim.lr_scheduler.StepLR(E_optim, step_size=50000, gamma=0.1)
     E.requires_grad_(True)
-    fg_net.requires_grad_(True)
+    # fg_net.requires_grad_(True)
     M.requires_grad_(True)
     # requires_grad(bg_net, True)
 
