@@ -1,4 +1,4 @@
-<mxfile host="app.diagrams.net" modified="2022-11-03T10:17:28.406Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="wHLb7Km6zDFszbpP24L2" version="20.5.1" type="github" pages="4">
+<mxfile host="app.diagrams.net" modified="2022-11-04T13:18:28.614Z" agent="5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36" etag="2J9Zu1b4HMmCxeqxAFua" version="20.5.1" type="github" pages="4">
   <diagram id="-gT2L565wR04coNj1ml8" name="第 1 页">
     <mxGraphModel dx="1422" dy="762" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
@@ -408,11 +408,11 @@
         <mxCell id="FHXJE6euo2zG3foDfUgD-11" value="gen_img" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="520" y="130" width="70" height="30" as="geometry" />
         </mxCell>
+        <mxCell id="FHXJE6euo2zG3foDfUgD-41" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.398;entryY=0;entryDx=0;entryDy=0;entryPerimeter=0;strokeColor=#000000;startArrow=none;startFill=0;" edge="1" parent="1" source="FHXJE6euo2zG3foDfUgD-13" target="FHXJE6euo2zG3foDfUgD-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <mxCell id="FHXJE6euo2zG3foDfUgD-13" value="pose_gt" style="rounded=1;whiteSpace=wrap;html=1;" vertex="1" parent="1">
           <mxGeometry x="300" y="220" width="70" height="30" as="geometry" />
-        </mxCell>
-        <mxCell id="FHXJE6euo2zG3foDfUgD-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#000000;startArrow=none;startFill=0;" edge="1" parent="1" source="FHXJE6euo2zG3foDfUgD-14" target="FHXJE6euo2zG3foDfUgD-10">
-          <mxGeometry relative="1" as="geometry" />
         </mxCell>
         <mxCell id="FHXJE6euo2zG3foDfUgD-19" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#FF0000;startArrow=classic;startFill=1;" edge="1" parent="1" source="FHXJE6euo2zG3foDfUgD-14" target="FHXJE6euo2zG3foDfUgD-13">
           <mxGeometry relative="1" as="geometry" />
